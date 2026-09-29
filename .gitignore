@@ -1,0 +1,14 @@
+/config/
+/state/
+/logs/
+/backups/
+*.zip
+*.dpapi
+*.log
+*.flag
+last-result.json
+.env
+*.local.*
+*.png
+*.jpg
+*.jpeg
