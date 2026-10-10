@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$ForceTest
 )
 
@@ -82,6 +82,20 @@ function Get-TestAccountConfig {
     return $config
 }
 
+function Test-BackgroundSuggestion {
+    param([string]$Message)
+    $text = $Message.Trim()
+    if (-not ($text.StartsWith('{') -and $text.EndsWith('}'))) { return $false }
+    try {
+        $candidate = $text | ConvertFrom-Json -ErrorAction Stop
+        $properties = @($candidate.PSObject.Properties)
+        # 只过滤建议生成的专用 JSON；正文提及 suggestion 或包含其他字段仍正常通知。
+        return ($properties.Count -eq 1 -and $properties[0].Name -ceq 'suggestion' -and
+            ($null -eq $properties[0].Value -or $properties[0].Value -is [string]))
+    }
+    catch { return $false }
+}
+
 try {
     if ((-not $ForceTest) -and (-not (Test-Path -LiteralPath $enabledFile))) {
         Complete-Hook -Success $true -Message '通知开关已关闭。'
@@ -112,6 +126,11 @@ try {
     $sessionId = if ($event.session_id) { [string]$event.session_id } else { 'unknown-session' }
     $turnId = if ($event.turn_id) { [string]$event.turn_id } else { '' }
     $message = if ($event.last_assistant_message) { [string]$event.last_assistant_message } else { '本轮任务已结束。' }
+    if ((-not $ForceTest) -and (Test-BackgroundSuggestion -Message $message)) {
+        Write-NotifierLog '已忽略后台输入建议。'
+        Complete-Hook -Success $true -Message '已忽略后台输入建议。'
+        exit 0
+    }
     if ($message.Length -gt 1800) {
         $message = $message.Substring(0, 1800) + "`n`n（摘要已截断，请远程查看完整回复）"
     }
